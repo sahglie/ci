@@ -58,12 +58,14 @@ class CiBuild
   end
 
   def default_env_vars
-    [ "WEBKIT=true", "QMAKE=/usr/bin/qmake-qt47" ]
+    [ "WEBKIT=false", "QMAKE=/usr/bin/qmake-qt47" ]
   end
 
   def run_cmd(cmd, env_vars = [])
-    env = (default_env_vars + env_vars).join(" ")
+    # TODO: Enable after qt47 is installed
+    # env = (default_env_vars + env_vars).join(" ")
 
+    env = env_vars.join(" ")
     full_cmd = "#{env} #{cmd}"
     $stdout.print("#{full_cmd} ... ")
 
@@ -102,7 +104,7 @@ class CiBuild
   def setup_db
     return unless run_specs
     ext_env = ["RAILS_ENV=test"]
-    run_cmd("bundle exec rake db:create", ext_env)
+    run_cmd("bundle exec rake db:create", ext_env) if db_adapter != 'sqlite3'
     run_cmd("bundle exec rake db:migrate", ext_env)
   end
 
@@ -144,8 +146,13 @@ DB
     tokens = workspace.split("/")
     tokens.pop
     dir = tokens.pop
-    FileUtils.mkdir("/var/lib/jenkins/tmp/#{dir}") unless File.exists?("/var/lib/jenkins/tmp/#{dir}")
-    `ln -s /var/lib/jenkins/jobs/#{dir}/workspace/tmp  /var/lib/jenkins/tmp/#{dir}`
+
+    link = "#{ENV['HOME']}/.jenkins/jobs/#{dir}/workspace/tmp"
+    target = "#{ENV['HOME']}/tmp/#{dir}"
+
+    FileUtils.mkdir(target) unless File.exists?(target)
+    FileUtils.rm_rf(link) if File.exists?(link)
+    File.symlink(target, link) unless File.symlink?(link)
   end
 
   def create_war
