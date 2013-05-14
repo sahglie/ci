@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
+require 'rubygems'
 require 'fileutils'
+require 'warbler'
 
 class CiBuild
   attr_accessor :svn_url, :workspace, :db_adapter, :run_specs, :precompile_assets
@@ -8,7 +10,6 @@ class CiBuild
   def initialize(svn_url, workspace, options={})
     @svn_url = svn_url
     @workspace = workspace
-
     $stdout.puts(workspace)
 
     @db_adapter = options.fetch(:adapter) { "postgresql" }
@@ -18,6 +19,7 @@ class CiBuild
 
   def run
     Dir.chdir(workspace) do
+      remove_workspace_rvm_config
       run_bundle_install
       setup_dot_yml_files
       setup_db
@@ -29,6 +31,10 @@ class CiBuild
 
 
   private
+
+  def remove_workspace_rvm_config
+    FileUtils.rm_rf("#{workspace}/.rvmrc") if File.exists?("#{workspace}/.rvmrc")
+  end
 
   def app_name
     unless @app_name
@@ -103,9 +109,10 @@ class CiBuild
 
   def setup_db
     return unless run_specs
-    ext_env = ["RAILS_ENV=test"]
-    run_cmd("bundle exec rake db:create", ext_env) if db_adapter != 'sqlite3'
-    run_cmd("bundle exec rake db:migrate", ext_env)
+    run_cmd("bundle exec rake db:migrate", ["RAILS_ENV=test"])
+    # Rails.env = "test"
+    # Rake::Task['db:create'].invoke unless db_adapter == 'sqlite3'
+    # Rake::Task['db:migrate'].invoke
   end
 
   def create_db_yml
@@ -156,8 +163,15 @@ DB
   end
 
   def create_war
-    run_cmd("bundle exec warble war", ["RAILS_ENV=ci"])
-    run_cmd("mv workspace.war #{war_name}.war")
+    RakeFileUtils.verbose_flag = true
+    Warbler::Task.new('trunk', Warbler::Config.new { |config|
+      config.webxml.rails.env = 'ci'
+    })
+
+    $stdout.print("Building war file: ")
+    Rake::Task['trunk'].invoke()
+
+    FileUtils.mv("workspace.war", "#{war_name}.war")
   end
 
   def war_checked_in?
