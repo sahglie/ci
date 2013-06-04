@@ -73,17 +73,17 @@ class CiBuild
 
     env = env_vars.join(" ")
     full_cmd = "#{env} #{cmd}"
-    $stdout.print("#{full_cmd} ... ")
+    $stdout.puts("#{full_cmd} ... ")
 
-    output = `#{full_cmd}`
+    output = `#{full_cmd} 2>&1`
+    $stdout.puts(output)
 
-    retval = $?
-    if retval.success?
+    if $?.success?
       $stdout.puts("[OK]")
     else
       $stdout.puts("[FAILED]")
-      $stdout.puts(output)
-      exit(retval.exitstatus)
+      $stdout.puts($?.exitstatus)
+      exit($?.exitstatus)
     end
 
     output
@@ -164,9 +164,7 @@ DB
 
   def create_war
     RakeFileUtils.verbose_flag = true
-    Warbler::Task.new('trunk', Warbler::Config.new { |config|
-      config.webxml.rails.env = 'ci'
-    })
+    Warbler::Task.new('trunk')
 
     $stdout.print("Building war file: ")
     Rake::Task['trunk'].invoke()
